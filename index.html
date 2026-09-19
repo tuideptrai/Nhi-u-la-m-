@@ -1,0 +1,1277 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>🎬 Tool thuyết minh video (Groq: nghe + dịch + TTS)</title>
+<style>
+  :root{
+    --bg:#0e1015; --card:#161a22; --card2:#1d222c; --line:#2a3140;
+    --txt:#e8ecf4; --muted:#8b95ab; --accent:#4f8cff; --accent-h:#3d78ea;
+    --green:#22c55e; --red:#ef4444; --purple:#a855f7; --orange:#f97316;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    font-size:14px;line-height:1.5;}
+  header{padding:18px 22px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+    background:linear-gradient(180deg,#141822,#0e1015);}
+  header h1{font-size:17px;margin:0;font-weight:700;}
+  header p{margin:0;color:var(--muted);font-size:12.5px;}
+
+  main{display:grid;grid-template-columns:minmax(0,1fr) 460px;
+    gap:16px;padding:16px;align-items:start;max-width:1600px;margin:0 auto;}
+  @media (max-width:1080px){main{grid-template-columns:1fr;}}
+
+  .card{background:var(--card);border:1px solid var(--line);
+    border-radius:var(--radius);padding:14px;margin-bottom:16px;}
+  .card h2{font-size:12px;text-transform:uppercase;letter-spacing:.8px;
+    color:var(--muted);margin:0 0 12px;font-weight:700;}
+  .card h2:not(:first-child){margin-top:20px;}
+
+  .video-wrap{position:relative;background:#000;border-radius:var(--radius);
+    overflow:hidden;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;}
+  #video{width:100%;height:100%;display:block;object-fit:contain;background:#000;}
+  #drop{position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:10px;cursor:pointer;
+    background:rgba(10,12,16,.92);text-align:center;padding:20px;
+    border:2px dashed var(--line);border-radius:var(--radius);
+    transition:.18s;color:var(--muted);}
+  #drop:hover,#drop.over{border-color:var(--accent);color:var(--txt);background:rgba(79,140,255,.08);}
+  #drop .big{font-size:38px;}
+  #drop b{color:var(--txt);font-size:15px;}
+
+  button{font:inherit;font-weight:600;cursor:pointer;border-radius:10px;
+    border:1px solid var(--line);background:var(--card2);color:var(--txt);
+    padding:9px 14px;transition:.15s;white-space:nowrap;}
+  button:hover:not(:disabled){background:#28303e;border-color:#3a445a;}
+  button:disabled{opacity:.45;cursor:not-allowed;}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+  button.primary:hover:not(:disabled){background:var(--accent-h);}
+  button.purple{background:var(--purple);border-color:var(--purple);color:#fff;}
+  button.purple:hover:not(:disabled){background:#9333ea;}
+  button.green{background:var(--green);border-color:var(--green);color:#052e16;}
+  button.green:hover:not(:disabled){background:#16a34a;}
+  button.orange{background:var(--orange);border-color:var(--orange);color:#431407;}
+  button.orange:hover:not(:disabled){background:#ea580c;}
+  button.danger{background:transparent;border-color:var(--red);color:#ff8b8b;}
+  button.mini{padding:2px 8px;font-size:12px;border-radius:7px;line-height:1.6;}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+
+  label.field{display:block;margin-bottom:12px;}
+  label.field > span{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;}
+  input[type=text],input[type=password],input[type=number],select,textarea{
+    width:100%;background:#0e1219;color:var(--txt);
+    border:1px solid var(--line);border-radius:9px;padding:8px 10px;
+    font:inherit;outline:none;transition:.15s;}
+  input:focus,select:focus,textarea:focus{border-color:var(--accent);
+    box-shadow:0 0 0 3px rgba(79,140,255,.15);}
+  textarea{resize:vertical;min-height:52px;line-height:1.45;}
+  input[type=range]{width:100%;accent-color:var(--accent);}
+  input[type=file]{display:none;}
+  .hint{font-size:11.5px;color:var(--muted);margin:6px 0 0;}
+
+  #segments{display:flex;flex-direction:column;gap:10px;margin-bottom:12px;
+    max-height:420px;overflow-y:auto;padding-right:4px;}
+  .seg{background:var(--card2);border:1px solid var(--line);
+    border-radius:11px;padding:10px;transition:.15s;}
+  .seg:focus-within{border-color:var(--accent);}
+  .seg-head{display:flex;align-items:center;gap:7px;margin-bottom:7px;flex-wrap:wrap;}
+  .seg-head input[type=number]{width:78px;padding:4px 7px;font-size:13px;}
+  .seg-head .unit{font-size:11.5px;color:var(--muted);}
+  .seg-head .spacer{flex:1;}
+  .seg textarea{background:#0b0f15;font-size:13px;}
+  .seg .divider{display:flex;align-items:center;gap:8px;margin:8px 0 6px;
+    font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}
+  .seg .divider::before,.seg .divider::after{content:'';flex:1;height:1px;background:var(--line);}
+  .seg.translating{opacity:.6;}
+  .badge{font-size:10px;padding:1px 6px;border-radius:5px;font-weight:700;
+    text-transform:uppercase;letter-spacing:.4px;}
+  .badge.ok{background:rgba(34,197,94,.2);color:#86efac;border:1px solid rgba(34,197,94,.4);}
+  .badge.err{background:rgba(239,68,68,.2);color:#fecaca;border:1px solid rgba(239,68,68,.4);}
+  .badge.orange{background:rgba(249,115,22,.2);color:#fdba74;border:1px solid rgba(249,115,22,.4);}
+
+  .pills{display:flex;gap:8px;margin-bottom:12px;}
+  .pill{flex:1;text-align:center;padding:9px 8px;border-radius:10px;
+    border:1px solid var(--line);background:var(--card2);
+    cursor:pointer;font-size:12.5px;font-weight:600;transition:.15s;}
+  .pill input{display:none;}
+  .pill.on{border-color:var(--accent);background:rgba(79,140,255,.14);color:#bcd4ff;}
+
+  .trans-bar{background:linear-gradient(135deg,rgba(168,85,247,.12),rgba(79,140,255,.08));
+    border:1px solid rgba(168,85,247,.3);border-radius:11px;padding:10px;margin-bottom:12px;}
+  .trans-bar .title{font-size:11.5px;font-weight:700;color:#d8b4fe;
+    text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px;}
+  .trans-bar .controls{display:flex;gap:8px;flex-wrap:wrap;}
+  .trans-bar select{flex:1;min-width:110px;padding:6px 9px;font-size:12.5px;}
+
+  .auto-box{background:linear-gradient(135deg,rgba(249,115,22,.12),rgba(34,197,94,.06));
+    border:1px solid rgba(249,115,22,.35);border-radius:11px;padding:10px;margin-bottom:12px;}
+  .auto-box .title{font-size:11.5px;font-weight:700;color:#fdba74;
+    text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;
+    display:flex;align-items:center;gap:6px;}
+  .auto-box .ctrl-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px;}
+  .auto-box label{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;}
+  .auto-box input[type=number]{width:70px;padding:4px 8px;font-size:12.5px;}
+  #autoStatus{font-size:12px;color:var(--muted);margin-top:8px;min-height:17px;
+    white-space:pre-wrap;word-break:break-word;line-height:1.5;}
+  #autoStatus.ok{color:var(--green);}
+  #autoStatus.err{color:#ff8b8b;}
+  #autoStatus.warn{color:#fde68a;}
+
+  .groq-box{background:rgba(249,115,22,.06);border:1px solid rgba(249,115,22,.25);
+    border-radius:10px;padding:10px;margin-top:10px;}
+  .groq-box .lbl{font-size:11.5px;color:#fdba74;font-weight:700;margin-bottom:6px;
+    text-transform:uppercase;letter-spacing:.4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .groq-box input{font-size:12.5px;font-family:ui-monospace,Menlo,Consolas,monospace;}
+  .groq-box .stat{margin-top:6px;font-size:11.5px;color:var(--muted);
+    white-space:pre-wrap;word-break:break-word;}
+  .groq-box .stat.ok{color:var(--green);}
+  .groq-box .stat.err{color:#ff8b8b;}
+  .groq-box .key-actions{display:flex;gap:6px;margin-top:8px;}
+
+  .bar{height:8px;background:#0b0f15;border-radius:99px;overflow:hidden;margin:12px 0 8px;}
+  #progressBar{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--green));
+    transition:width .15s linear;}
+  #status{font-size:12.5px;color:var(--muted);margin:0;min-height:19px;
+    white-space:pre-wrap;word-break:break-word;}
+  #status.ok{color:var(--green);}
+  #status.err{color:#ff8b8b;}
+
+  .time-badge{font-variant-numeric:tabular-nums;font-size:12px;color:var(--muted);
+    background:#0b0f15;border:1px solid var(--line);padding:3px 9px;border-radius:7px;}
+  #toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,20px);
+    background:#232a36;border:1px solid var(--line);color:var(--txt);
+    padding:11px 18px;border-radius:11px;font-size:13px;font-weight:500;
+    opacity:0;pointer-events:none;transition:.25s;z-index:99;
+    box-shadow:0 10px 30px rgba(0,0,0,.5);max-width:90vw;
+    white-space:pre-wrap;word-break:break-word;}
+  #toast.show{opacity:1;transform:translate(-50%,0);}
+  .warn{background:rgba(234,179,8,.1);border:1px solid rgba(234,179,8,.35);
+    color:#fde68a;padding:9px 11px;border-radius:9px;font-size:12px;
+    margin-bottom:12px;line-height:1.5;}
+  .warn.big{margin:12px 16px;padding:12px 16px;font-size:13px;
+    background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.4);color:#fecaca;}
+  .spin{display:inline-block;width:12px;height:12px;border-radius:50%;
+    border:2px solid rgba(255,255,255,.3);border-top-color:#fff;
+    animation:spin .7s linear infinite;vertical-align:-2px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  details summary{cursor:pointer;color:var(--muted);font-size:12px;margin-top:6px;}
+  details[open] summary{color:#fdba74;}
+  a{color:var(--accent);}
+  code{background:#0b0f15;padding:1px 5px;border-radius:4px;font-size:11.5px;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🎬 Tool thuyết minh video <span style="color:var(--orange)">+ Groq AI</span></h1>
+  <p>Nghe · Dịch EN/ZH → VI · Xuất MP4 · Miễn phí 2.000 request/ngày</p>
+</header>
+
+<div id="ttsMissingWarn" style="display:none" class="warn big">
+  🚫 <b>Trình duyệt không hỗ trợ TTS (Web Speech API).</b><br>
+  → Dùng <b>Chrome / Edge / Cốc Cốc mới nhất</b>, mở file trực tiếp (không qua iframe).<br>
+  → Vẫn có thể chuyển sang <b>🎧 File audio</b> để xuất video có tiếng.
+</div>
+
+<main>
+  <section>
+    <div class="card" style="padding:0;border:none;background:none;">
+      <div class="video-wrap">
+        <video id="video" playsinline controls></video>
+        <div id="drop">
+          <div class="big">📼</div>
+          <b>Kéo &amp; thả video vào đây</b>
+          <span>hoặc bấm để chọn file (MP4, WEBM, MOV, MKV…)</span>
+        </div>
+      </div>
+      <canvas id="canvas" style="position:absolute;left:-99999px;top:0;"></canvas>
+      <input type="file" id="videoFile" accept="video/*">
+    </div>
+
+    <div class="card">
+      <h2>Điều khiển</h2>
+      <div class="row">
+        <button id="btnPlay">▶️ Phát thử</button>
+        <button id="btnPause">⏸ Tạm dừng</button>
+        <button id="btnRewind">⏮ Về đầu</button>
+        <span style="flex:1"></span>
+        <span class="time-badge" id="timeBadge">0:00 / 0:00</span>
+      </div>
+      <p class="hint">Bấm "Phát thử" để nghe giọng đọc khớp với video trước khi xuất.</p>
+    </div>
+  </section>
+
+  <aside>
+    <div class="card">
+      <h2>1 · Nghe &amp; dịch video tự động</h2>
+
+      <!-- === GROQ API KEY === -->
+      <div class="groq-box" style="margin-top:0;margin-bottom:12px;">
+        <div class="lbl">⚡ Groq API Key
+          <span id="engBadge" class="badge orange">CHƯA KIỂM TRA</span>
+        </div>
+        <input type="password" id="groqKey"
+          placeholder="gsk_... (lấy tại console.groq.com/keys)">
+        <div class="stat" id="groqStat">Chưa có key.</div>
+        <div class="key-actions">
+          <button id="btnTestKey" class="orange" style="flex:1">🧪 Kiểm tra key</button>
+          <button id="btnClearKey" class="danger">🗑️ Xoá</button>
+        </div>
+        <details>
+          <summary>💡 Cách lấy Groq API Key miễn phí (30 giây)</summary>
+          <div style="font-size:11.5px;color:var(--muted);margin-top:6px;line-height:1.6">
+            1. Mở <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys</a><br>
+            2. Đăng nhập Google/GitHub → bấm <b>Create API Key</b><br>
+            3. Copy key (dạng <code>gsk_...</code>) → dán vào ô trên → bấm <b>🧪 Kiểm tra key</b><br>
+            <br>
+            <b>Miễn phí:</b> 2.000 request/ngày · 7.200 audio-giây/phút<br>
+            <b>Không cần</b> thẻ tín dụng.
+          </div>
+        </details>
+      </div>
+
+      <div class="auto-box">
+        <div class="title">🎙️ Nhận diện &amp; dịch từ video</div>
+        <p class="hint" style="margin:0">
+          Nghe âm thanh video bằng <b>Whisper Large v3</b>, dịch sang tiếng Việt bằng
+          <b>Llama 3.3 70B</b>, điền vào kịch bản bên dưới.
+        </p>
+        <div class="ctrl-row">
+          <label>
+            Đoạn:
+            <input type="number" id="chunkSize" value="30" min="15" max="90">
+            giây
+          </label>
+          <button id="btnAuto" class="green" style="flex:1">🎙️ Nghe &amp; dịch video</button>
+        </div>
+        <p id="autoStatus">Sẵn sàng.</p>
+      </div>
+
+      <h2>Kịch bản</h2>
+
+      <div class="trans-bar">
+        <div class="title">🌐 Dịch văn bản dán tay</div>
+        <div class="controls">
+          <select id="srcLang">
+            <option value="auto">🔄 Tự nhận diện</option>
+            <option value="en">🇬🇧 Tiếng Anh</option>
+            <option value="zh-CN">🇨🇳 Tiếng Trung</option>
+            <option value="ja">🇯🇵 Tiếng Nhật</option>
+            <option value="ko">🇰🇷 Tiếng Hàn</option>
+          </select>
+          <button id="btnTransAll" class="purple">🌐 Dịch tất cả</button>
+        </div>
+      </div>
+
+      <div id="segments"></div>
+
+      <div class="row">
+        <button id="addSeg">+ Thêm đoạn</button>
+        <button id="distribute">⚖️ Chia đều</button>
+        <button id="clearSegs" class="danger">🗑️ Xoá hết</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>2 · Giọng đọc</h2>
+
+      <label class="field">
+        <span>Giọng</span>
+        <select id="voiceSel"><option>Đang tải…</option></select>
+      </label>
+
+      <label class="field">
+        <span>Tốc độ: <b id="rateVal">1.0</b>×</span>
+        <input type="range" id="rate" min="0.5" max="2" step="0.05" value="1">
+      </label>
+
+      <label class="field">
+        <span>Cao độ: <b id="pitchVal">1.0</b></span>
+        <input type="range" id="pitch" min="0" max="2" step="0.05" value="1">
+      </label>
+
+      <label class="field">
+        <span>Âm lượng: <b id="volVal">100</b>%</span>
+        <input type="range" id="vol" min="0" max="1" step="0.05" value="1">
+      </label>
+
+      <h2>Nguồn âm thanh</h2>
+      <div class="pills">
+        <label class="pill on" id="pillTts">
+          <input type="radio" name="amode" value="tts" checked> 🔊 TTS
+        </label>
+        <label class="pill" id="pillFile">
+          <input type="radio" name="amode" value="file"> 🎧 File audio
+        </label>
+      </div>
+
+      <div id="fileAudioBox" style="display:none">
+        <button id="pickAudio" style="width:100%">📁 Chọn file thuyết minh</button>
+        <p class="hint" id="audioInfo">Chưa chọn file.</p>
+      </div>
+      <input type="file" id="narrationFile" accept="audio/*">
+
+      <label class="row" style="margin-top:12px;gap:8px;cursor:pointer">
+        <input type="checkbox" id="keepOriginal" checked style="width:auto;accent-color:var(--accent)">
+        <span style="font-size:12.5px">Giữ âm thanh gốc của video</span>
+      </label>
+    </div>
+
+    <div class="card">
+      <h2>3 · Xuất video</h2>
+
+      <div class="warn" id="ttsWarn">
+        ⚠️ Khi xuất, hãy chọn <b>"Tab này"</b> và bật <b>"Chia sẻ âm thanh tab"</b>
+        để thu được giọng đọc.
+      </div>
+
+      <div class="row">
+        <button class="primary" id="btnExport" style="flex:1">⬇️ Bắt đầu &amp; Tải về</button>
+        <button class="danger" id="btnStop" hidden>⏹ Dừng</button>
+      </div>
+
+      <div class="bar"><div id="progressBar"></div></div>
+      <p id="status">Sẵn sàng.</p>
+    </div>
+  </aside>
+</main>
+
+<div id="toast"></div>
+
+<script>
+/* =========================================================
+   SHIM Web Speech API
+   ========================================================= */
+const HAS_TTS = (typeof window !== 'undefined')
+  && ('speechSynthesis' in window)
+  && (typeof window.SpeechSynthesisUtterance === 'function');
+
+if (!HAS_TTS) {
+  if (!('speechSynthesis' in window)) {
+    window.speechSynthesis = {
+      speak(){}, cancel(){}, pause(){}, resume(){},
+      getVoices(){ return []; }, onvoiceschanged: null,
+      pending:false, speaking:false, paused:false
+    };
+  }
+  if (typeof window.SpeechSynthesisUtterance !== 'function') {
+    window.SpeechSynthesisUtterance = function(t){ this.text = t || ''; };
+  }
+}
+
+/* =========================================================
+   TIỆN ÍCH
+   ========================================================= */
+const $  = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtTime = t => {
+  if (!isFinite(t) || t < 0) return '0:00';
+  const m = Math.floor(t / 60), s = Math.floor(t % 60);
+  return m + ':' + String(s).padStart(2, '0');
+};
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+let toastTimer;
+function toast(msg, ms = 2600) {
+  const el = $('#toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), ms);
+}
+function setStatus(msg, cls = '') {
+  const el = $('#status');
+  el.textContent = msg;
+  el.className = cls;
+}
+function setAutoStatus(msg, cls = '') {
+  const el = $('#autoStatus');
+  el.textContent = msg;
+  el.className = cls;
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  if (!HAS_TTS) $('#ttsMissingWarn').style.display = 'block';
+});
+
+/* =========================================================
+   GROQ API KEY
+   ========================================================= */
+const KEY_STORAGE = 'groq_api_key';
+const GROQ_BASE = 'https://api.groq.com/openai/v1';
+const STT_MODEL = 'whisper-large-v3';       // chính xác cao, có timestamp
+const LLM_MODEL = 'llama-3.3-70b-versatile'; // dịch chất lượng cao
+
+function getKey() { return (localStorage.getItem(KEY_STORAGE) || '').trim(); }
+function setKey(k) { localStorage.setItem(KEY_STORAGE, (k || '').trim()); updateKeyStatus(); }
+function isGroqKey(k) { return /^gsk_[0-9A-Za-z_\-]{20,}$/.test(k); }
+
+function updateKeyStatus() {
+  const k = getKey();
+  const st = $('#groqStat');
+  const badge = $('#engBadge');
+  if (!k) {
+    st.textContent = 'Chưa có key → dán key Groq vào để dùng.';
+    st.className = 'stat';
+    badge.className = 'badge err'; badge.textContent = 'CHƯA CÓ KEY';
+    return;
+  }
+  if (!isGroqKey(k)) {
+    st.textContent = '⚠️ Key không đúng định dạng (phải bắt đầu bằng "gsk_").';
+    st.className = 'stat err';
+    badge.className = 'badge err'; badge.textContent = 'KEY SAI';
+    return;
+  }
+  st.textContent = '✅ Đã có key. Bấm "🧪 Kiểm tra key" để xác nhận hoạt động.';
+  st.className = 'stat';
+  badge.className = 'badge orange'; badge.textContent = 'CHƯA KIỂM TRA';
+}
+
+(function initKey() {
+  const k = getKey();
+  if (k) $('#groqKey').value = k;
+  updateKeyStatus();
+})();
+
+$('#groqKey').addEventListener('input', e => {
+  clearTimeout(window.__keyTimer);
+  window.__keyTimer = setTimeout(() => setKey(e.target.value), 600);
+});
+$('#btnClearKey').addEventListener('click', () => {
+  $('#groqKey').value = '';
+  setKey('');
+  toast('Đã xoá key');
+});
+
+/* =========================================================
+   KIỂM TRA KEY
+   ========================================================= */
+$('#btnTestKey').addEventListener('click', async () => {
+  const k = getKey();
+  if (!k) return toast('Chưa có key để kiểm tra');
+  if (!isGroqKey(k)) return toast('Key sai định dạng (phải bắt đầu bằng "gsk_")');
+
+  const btn = $('#btnTestKey');
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Đang thử…';
+  const st = $('#groqStat');
+  const badge = $('#engBadge');
+
+  try {
+    const res = await fetch(`${GROQ_BASE}/models`, {
+      headers: { 'Authorization': `Bearer ${k}` }
+    });
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      let m = `HTTP ${res.status}`;
+      try { const j = JSON.parse(txt); if (j?.error?.message) m += ' – ' + j.error.message; } catch (e) {}
+      throw new Error(m);
+    }
+    const data = await res.json();
+    const models = (data?.data || []).map(m => m.id);
+    const hasWhisper = models.some(m => m.includes('whisper'));
+    const hasLlama = models.some(m => m.includes('llama-3.3-70b'));
+
+    st.textContent = `✅ Key hoạt động! Có ${models.length} model.`
+      + (hasWhisper ? ' ✓ Whisper STT' : ' ⚠️ Thiếu Whisper')
+      + (hasLlama ? ' ✓ Llama 3.3 70B' : ' ⚠️ Thiếu Llama 3.3');
+    st.className = 'stat ok';
+    badge.className = 'badge ok'; badge.textContent = 'SẴN SÀNG';
+    toast('Key Groq hoạt động ✔', 3000);
+  } catch (err) {
+    console.error(err);
+    st.textContent = '❌ Lỗi: ' + (err.message || err);
+    st.className = 'stat err';
+    badge.className = 'badge err'; badge.textContent = 'LỖI KEY';
+    toast('Key không hoạt động: ' + (err.message || err), 4000);
+  } finally {
+    btn.disabled = false; btn.innerHTML = '🧪 Kiểm tra key';
+  }
+});
+
+/* =========================================================
+   GROQ API CALLS
+   ========================================================= */
+
+/* --- Whisper: audio → text có timestamp --- */
+async function groqTranscribe(blob, langHint = null) {
+  const k = getKey();
+  if (!k) throw new Error('Chưa có Groq API Key');
+
+  const fd = new FormData();
+  fd.append('file', blob, 'audio.wav');
+  fd.append('model', STT_MODEL);
+  fd.append('response_format', 'verbose_json');
+  fd.append('timestamp_granularities[]', 'segment');
+  if (langHint && langHint !== 'auto') fd.append('language', langHint.split('-')[0]);
+
+  const res = await fetch(`${GROQ_BASE}/audio/transcriptions`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${k}` },
+    body: fd
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => '');
+    let m = `Whisper HTTP ${res.status}`;
+    try { const j = JSON.parse(txt); if (j?.error?.message) m += ' – ' + j.error.message; } catch (e) {}
+    if (res.status === 429) m = '429 – Vượt quota Groq. Chờ ~1 phút rồi thử lại.';
+    if (res.status === 413) m = '413 – File audio > 25MB. Giảm chunk size.';
+    throw new Error(m);
+  }
+  return await res.json(); // { text, segments: [{start, end, text}], language }
+}
+
+/* --- Llama: dịch text sang tiếng Việt --- */
+async function groqTranslate(text, source = 'auto') {
+  const k = getKey();
+  if (!k) throw new Error('Chưa có Groq API Key');
+  text = String(text || '').trim();
+  if (!text) return '';
+
+  const srcName = source === 'auto' ? 'ngôn ngữ gốc' : ({
+    'en':'tiếng Anh','zh-CN':'tiếng Trung','ja':'tiếng Nhật','ko':'tiếng Hàn'
+  }[source] || source);
+
+  const res = await fetch(`${GROQ_BASE}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${k}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: LLM_MODEL,
+      temperature: 0.3,
+      max_tokens: 2048,
+      messages: [
+        { role: 'system', content:
+          `Bạn là dịch giả chuyên nghiệp. Dịch văn bản từ ${srcName} sang tiếng Việt tự nhiên, mượt mà, phù hợp để đọc thuyết minh video. Chỉ trả về bản dịch, không giải thích, không markdown, không ngoặc kép.` },
+        { role: 'user', content: text }
+      ]
+    })
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => '');
+    let m = `Llama HTTP ${res.status}`;
+    try { const j = JSON.parse(txt); if (j?.error?.message) m += ' – ' + j.error.message; } catch (e) {}
+    if (res.status === 429) m = '429 – Vượt quota Groq. Chờ ~1 phút.';
+    throw new Error(m);
+  }
+  const data = await res.json();
+  let out = (data?.choices?.[0]?.message?.content || '').trim();
+  out = out.replace(/^["“”'`]+|["“”'`]+$/g, '').trim();
+  out = out.replace(/^Bản dịch tiếng Việt\s*[:：]\s*/i, '').trim();
+  return out;
+}
+
+/* =========================================================
+   TRẠNG THÁI
+   ========================================================= */
+const state = {
+  videoURL: null, videoFile: null, fileName: 'video',
+  audioMode: 'tts',
+  narrationBuffer: null, narrationName: '',
+  voice: null, rate: 1, pitch: 1, volume: 1,
+  keepOriginal: true, isExporting: false, recorder: null,
+  translating: false, autoTranscribing: false
+};
+
+const video = $('#video');
+const canvas = $('#canvas');
+
+let audioCtx = null;
+let videoSourceNode = null;
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+function getVideoSource() {
+  const ctx = getAudioCtx();
+  if (!videoSourceNode) {
+    videoSourceNode = ctx.createMediaElementSource(video);
+    videoSourceNode.connect(ctx.destination);
+  }
+  return videoSourceNode;
+}
+
+/* =========================================================
+   NẠP VIDEO
+   ========================================================= */
+const dropZone = $('#drop');
+const videoInput = $('#videoFile');
+
+dropZone.addEventListener('click', () => videoInput.click());
+videoInput.addEventListener('change', e => { if (e.target.files[0]) loadVideo(e.target.files[0]); });
+
+['dragenter','dragover'].forEach(ev =>
+  dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.add('over'); })
+);
+['dragleave','drop'].forEach(ev =>
+  dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.remove('over'); })
+);
+dropZone.addEventListener('drop', e => {
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('video')) loadVideo(f);
+  else toast('Vui lòng chọn file video hợp lệ');
+});
+
+function loadVideo(file) {
+  if (state.videoURL) URL.revokeObjectURL(state.videoURL);
+  state.videoURL = URL.createObjectURL(file);
+  state.videoFile = file;
+  state.fileName = file.name.replace(/\.[^.]+$/, '') || 'video';
+  video.src = state.videoURL;
+  video.load();
+  dropZone.style.display = 'none';
+
+  video.addEventListener('loadedmetadata', () => {
+    $('#timeBadge').textContent = `0:00 / ${fmtTime(video.duration)}`;
+    setStatus(`Đã nạp video: ${video.videoWidth}×${video.videoHeight} · ${fmtTime(video.duration)}`);
+  }, { once: true });
+  toast('Đã nạp video ✔');
+}
+
+/* =========================================================
+   KỊCH BẢN
+   ========================================================= */
+let segments = [];
+let segId = 0;
+
+function addSegment(start = 0, source = '', vi = '') {
+  segments.push({ id: ++segId, start: Number(start) || 0, source, vi });
+  renderSegments();
+}
+
+function renderSegments() {
+  const box = $('#segments');
+  box.innerHTML = '';
+  if (!segments.length) {
+    box.innerHTML = '<p class="hint" style="margin:0">Chưa có đoạn nào. Bấm "🎙️ Nghe &amp; dịch video" hoặc "+ Thêm đoạn" để bắt đầu.</p>';
+    return;
+  }
+
+  segments.forEach(s => {
+    const el = document.createElement('div');
+    el.className = 'seg';
+    el.dataset.id = s.id;
+    el.innerHTML = `
+      <div class="seg-head">
+        <input type="number" class="seg-time" min="0" step="0.1" value="${s.start.toFixed(2)}">
+        <span class="unit">giây</span>
+        <button class="mini now" title="Lấy mốc thời gian hiện tại">⏱</button>
+        <button class="mini play-here" title="Phát thử">▶</button>
+        <span class="spacer"></span>
+        <button class="mini trans" title="Dịch đoạn này">🌐</button>
+        <button class="mini del" title="Xoá">✕</button>
+      </div>
+      <textarea class="seg-src" rows="2" placeholder="Văn bản gốc (English / 中文 / ...)">${esc(s.source)}</textarea>
+      <div class="divider">🇻🇳 Bản dịch (sẽ được đọc)</div>
+      <textarea class="seg-vi" rows="2" placeholder="Bản dịch tiếng Việt">${esc(s.vi)}</textarea>
+    `;
+    el.querySelector('.seg-time').addEventListener('input', e => { s.start = parseFloat(e.target.value) || 0; });
+    el.querySelector('.seg-src').addEventListener('input', e => { s.source = e.target.value; });
+    el.querySelector('.seg-vi').addEventListener('input',  e => { s.vi = e.target.value; });
+
+    el.querySelector('.now').addEventListener('click', () => {
+      const t = +(video.currentTime || 0).toFixed(2);
+      s.start = t; el.querySelector('.seg-time').value = t;
+    });
+    el.querySelector('.play-here').addEventListener('click', () => {
+      video.currentTime = s.start;
+      if (HAS_TTS) { window.speechSynthesis.cancel(); speak(s.vi.trim()); }
+    });
+    el.querySelector('.trans').addEventListener('click', async () => {
+      const src = s.source.trim();
+      if (!src) return toast('Chưa có văn bản gốc');
+      const btn = el.querySelector('.trans');
+      btn.disabled = true; btn.innerHTML = '<span class="spin"></span>';
+      el.classList.add('translating');
+      try {
+        const out = await groqTranslate(src, $('#srcLang').value);
+        s.vi = out; el.querySelector('.seg-vi').value = out;
+        toast('Đã dịch ✔');
+      } catch (err) { toast('Lỗi: ' + err.message, 3500); }
+      finally { btn.disabled = false; btn.textContent = '🌐'; el.classList.remove('translating'); }
+    });
+    el.querySelector('.del').addEventListener('click', () => {
+      segments = segments.filter(x => x.id !== s.id);
+      renderSegments();
+    });
+
+    box.appendChild(el);
+  });
+}
+
+$('#addSeg').addEventListener('click', () => addSegment(video.currentTime || 0));
+$('#clearSegs').addEventListener('click', () => {
+  if (!segments.length) return;
+  if (!confirm('Xoá toàn bộ kịch bản?')) return;
+  segments = []; renderSegments();
+});
+
+$('#distribute').addEventListener('click', () => {
+  const list = segments.filter(s => (s.vi || s.source).trim());
+  if (!list.length) return toast('Chưa có nội dung');
+  const dur = isFinite(video.duration) ? video.duration : 0;
+  if (!dur) return toast('Chưa nạp video');
+  const total = list.reduce((a, s) => a + (s.vi || s.source).trim().length, 0);
+  let t = 0;
+  list.forEach(s => {
+    s.start = +t.toFixed(2);
+    t += dur * ((s.vi || s.source).trim().length / total);
+  });
+  renderSegments();
+  toast('Đã chia đều ✔');
+});
+
+/* =========================================================
+   DỊCH TẤT CẢ
+   ========================================================= */
+$('#btnTransAll').addEventListener('click', async () => {
+  if (state.translating) return;
+  const targets = segments.filter(s => s.source.trim() && !s.vi.trim());
+  if (!targets.length) return toast('Không có đoạn nào cần dịch');
+  state.translating = true;
+  const btn = $('#btnTransAll');
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Đang dịch…';
+  const src = $('#srcLang').value;
+  let done = 0, errs = 0;
+  for (const s of targets) {
+    const el = document.querySelector(`.seg[data-id="${s.id}"]`);
+    if (el) {
+      el.classList.add('translating');
+      const b = el.querySelector('.trans');
+      if (b) { b.disabled = true; b.innerHTML = '<span class="spin"></span>'; }
+    }
+    try {
+      s.vi = await groqTranslate(s.source.trim(), src);
+      if (el) el.querySelector('.seg-vi').value = s.vi;
+      done++;
+    } catch (err) { console.error(err); errs++; }
+    finally {
+      if (el) {
+        el.classList.remove('translating');
+        const b = el.querySelector('.trans');
+        if (b) { b.disabled = false; b.textContent = '🌐'; }
+      }
+      await sleep(250);
+    }
+  }
+  state.translating = false;
+  btn.disabled = false; btn.innerHTML = '🌐 Dịch tất cả';
+  toast(errs ? `Đã dịch ${done}, lỗi ${errs} ❌` : `Đã dịch xong ${done} đoạn ✔`, 3500);
+});
+
+/* =========================================================
+   🎙️ NGHE & DỊCH VIDEO TỰ ĐỘNG (GROQ)
+   ========================================================= */
+
+/* --- AudioBuffer → WAV 16kHz mono --- */
+function audioBufferToWav(buffer) {
+  const numCh = buffer.numberOfChannels;
+  const len = buffer.length;
+  const sr = buffer.sampleRate;
+  const bytesPerSample = 2;
+  const blockAlign = numCh * bytesPerSample;
+  const dataSize = len * blockAlign;
+  const ab = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(ab);
+  let off = 0;
+  const ws = s => { for (let i = 0; i < s.length; i++) view.setUint8(off++, s.charCodeAt(i)); };
+  ws('RIFF'); view.setUint32(off, 36 + dataSize, true); off += 4;
+  ws('WAVE'); ws('fmt ');
+  view.setUint32(off, 16, true); off += 4;
+  view.setUint16(off, 1, true); off += 2;
+  view.setUint16(off, numCh, true); off += 2;
+  view.setUint32(off, sr, true); off += 4;
+  view.setUint32(off, sr * blockAlign, true); off += 4;
+  view.setUint16(off, blockAlign, true); off += 2;
+  view.setUint16(off, 16, true); off += 2;
+  ws('data'); view.setUint32(off, dataSize, true); off += 4;
+
+  const chans = [];
+  for (let c = 0; c < numCh; c++) chans.push(buffer.getChannelData(c));
+  for (let i = 0; i < len; i++) {
+    for (let c = 0; c < numCh; c++) {
+      let s = Math.max(-1, Math.min(1, chans[c][i]));
+      s = s < 0 ? s * 0x8000 : s * 0x7FFF;
+      view.setInt16(off, s, true); off += 2;
+    }
+  }
+  return ab;
+}
+
+async function sliceAudioToWav(sourceBuffer, startSec, durSec) {
+  const sr = 16000;
+  const len = Math.max(1, Math.floor(durSec * sr));
+  const offline = new OfflineAudioContext(1, len, sr);
+  const src = offline.createBufferSource();
+  src.buffer = sourceBuffer;
+  src.connect(offline.destination);
+  src.start(0, startSec, durSec);
+  const rendered = await offline.startRendering();
+  return audioBufferToWav(rendered);
+}
+
+/* --- Nút Nghe & dịch --- */
+$('#btnAuto').addEventListener('click', autoTranscribe);
+
+async function autoTranscribe() {
+  if (state.autoTranscribing) return;
+  if (!state.videoFile) return toast('Vui lòng nạp video trước');
+  if (!getKey()) return toast('Cần Groq API Key — dán key ở trên', 4000);
+  if (!isGroqKey(getKey())) return toast('Key Groq sai định dạng (phải bắt đầu bằng "gsk_")', 4000);
+  if (!window.AudioContext && !window.webkitAudioContext) return toast('Trình duyệt không hỗ trợ Web Audio');
+
+  if (segments.length) {
+    if (!confirm('Ghi đè toàn bộ kịch bản hiện tại bằng kết quả nhận diện?')) return;
+  }
+
+  state.autoTranscribing = true;
+  const btn = $('#btnAuto');
+  btn.disabled = true;
+  const orig = btn.innerHTML;
+  btn.innerHTML = '<span class="spin"></span> Đang xử lý…';
+
+  try {
+    setAutoStatus('① Đang giải mã âm thanh từ video… (có thể mất 5–30s)');
+    const arrayBuf = await state.videoFile.arrayBuffer();
+    const ctx = getAudioCtx();
+    const audioBuf = await ctx.decodeAudioData(arrayBuf);
+    const duration = audioBuf.duration;
+
+    if (duration > 10 * 60) {
+      setAutoStatus(`⚠️ Video dài ${(duration/60).toFixed(1)} phút — vượt giới hạn 10 phút của tool. Hãy cắt bớt video.`, 'warn');
+      toast('Video vượt 10 phút — tool chỉ hỗ trợ tối đa 10 phút', 4000);
+      throw new Error('Video vượt quá 10 phút');
+    }
+
+    const chunkSize = Math.max(15, Math.min(90, +$('#chunkSize').value || 30));
+    const chunks = [];
+    for (let t = 0; t < duration; t += chunkSize) {
+      chunks.push({ start: t, dur: Math.min(chunkSize, duration - t) });
+    }
+
+    setAutoStatus(`② Video dài ${duration.toFixed(1)}s → ${chunks.length} đoạn (~${chunkSize}s). Bắt đầu gửi Groq Whisper…`);
+
+    segments = [];
+    segId = 0;
+    renderSegments();
+
+    const srcHint = $('#srcLang').value;
+    let totalFound = 0, errs = 0;
+
+    for (let i = 0; i < chunks.length; i++) {
+      const c = chunks[i];
+      setAutoStatus(`③ Đang nghe đoạn ${i+1}/${chunks.length} (${c.start.toFixed(0)}s → ${(c.start+c.dur).toFixed(0)}s)…`);
+      $('#progressBar').style.width = ((i / chunks.length) * 100).toFixed(1) + '%';
+
+      try {
+        const wavAB = await sliceAudioToWav(audioBuf, c.start, c.dur);
+        const wavBlob = new Blob([wavAB], { type: 'audio/wav' });
+
+        const result = await groqTranscribe(wavBlob, srcHint);
+
+        if (result.segments && result.segments.length) {
+          for (const seg of result.segments) {
+            const srcText = (seg.text || '').trim();
+            if (!srcText) continue;
+            segments.push({
+              id: ++segId,
+              start: c.start + (Number(seg.start) || 0),
+              source: srcText,
+              vi: ''
+            });
+          }
+        } else if (result.text && result.text.trim()) {
+          segments.push({
+            id: ++segId,
+            start: c.start,
+            source: result.text.trim(),
+            vi: ''
+          });
+        }
+        totalFound += segments.length;
+      } catch (err) {
+        console.warn('Lỗi đoạn', i, err);
+        errs++;
+      }
+      await sleep(300);
+    }
+
+    // Dịch từng đoạn sang tiếng Việt
+    if (segments.length) {
+      setAutoStatus(`④ Đang dịch ${segments.length} đoạn sang tiếng Việt bằng Llama 3.3…`);
+      let done = 0;
+      for (const s of segments) {
+        try {
+          s.vi = await groqTranslate(s.source, srcHint);
+          done++;
+          setAutoStatus(`④ Đang dịch ${done}/${segments.length}…`);
+          renderSegments();
+        } catch (err) {
+          console.warn('Dịch lỗi:', err);
+        }
+        await sleep(300);
+      }
+    }
+
+    segments.sort((a, b) => a.start - b.start);
+    renderSegments();
+    $('#progressBar').style.width = '100%';
+
+    if (!segments.length) {
+      setAutoStatus(`❌ Không nhận diện được đoạn nào (${errs} lỗi). Kiểm tra key / quota / audio.`, 'err');
+    } else if (errs) {
+      setAutoStatus(`⚠️ Hoàn tất: ${segments.length} đoạn, ${errs} đoạn lỗi.`, 'warn');
+    } else {
+      setAutoStatus(`✅ Hoàn tất! ${segments.length} đoạn đã dịch sang tiếng Việt.`, 'ok');
+      toast(`Đã nhận diện &amp; dịch ${segments.length} đoạn 🎉`, 4000);
+    }
+
+  } catch (err) {
+    console.error(err);
+    setAutoStatus('❌ Lỗi: ' + (err.message || err), 'err');
+    toast('Lỗi: ' + (err.message || err), 4000);
+  } finally {
+    state.autoTranscribing = false;
+    btn.disabled = false;
+    btn.innerHTML = orig;
+    setTimeout(() => { $('#progressBar').style.width = '0%'; }, 1500);
+  }
+}
+
+/* =========================================================
+   GIỌNG ĐỌC TTS
+   ========================================================= */
+const voiceSel = $('#voiceSel');
+function loadVoices() {
+  if (!HAS_TTS) {
+    voiceSel.innerHTML = '<option>(Trình duyệt không hỗ trợ TTS)</option>';
+    return;
+  }
+  const voices = window.speechSynthesis.getVoices();
+  if (!voices.length) return;
+  voiceSel.innerHTML = '';
+  const vi = voices.filter(v => /vi/i.test(v.lang));
+  const others = voices.filter(v => !/vi/i.test(v.lang));
+  const addGroup = (label, arr) => {
+    if (!arr.length) return;
+    const g = document.createElement('optgroup');
+    g.label = label;
+    arr.forEach(v => {
+      const o = document.createElement('option');
+      o.value = voices.indexOf(v);
+      o.textContent = `${v.name} (${v.lang})`;
+      g.appendChild(o);
+    });
+    voiceSel.appendChild(g);
+  };
+  addGroup('🇻🇳 Tiếng Việt', vi);
+  addGroup('🌐 Ngôn ngữ khác', others);
+  const def = vi[0] || voices[0];
+  if (def) { voiceSel.value = voices.indexOf(def); state.voice = def; }
+}
+if (HAS_TTS) {
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+  setTimeout(loadVoices, 300);
+} else setTimeout(loadVoices, 100);
+
+voiceSel.addEventListener('change', () => {
+  if (!HAS_TTS) return;
+  const v = window.speechSynthesis.getVoices()[+voiceSel.value];
+  if (v) state.voice = v;
+});
+
+$('#rate').addEventListener('input', e => { state.rate = +e.target.value; $('#rateVal').textContent = (+e.target.value).toFixed(2); });
+$('#pitch').addEventListener('input', e => { state.pitch = +e.target.value; $('#pitchVal').textContent = (+e.target.value).toFixed(2); });
+$('#vol').addEventListener('input', e => { state.volume = +e.target.value; $('#volVal').textContent = Math.round(e.target.value * 100); });
+
+function speak(text) {
+  if (!HAS_TTS) return;
+  const u = new window.SpeechSynthesisUtterance(text);
+  if (state.voice) { u.voice = state.voice; u.lang = state.voice.lang; }
+  u.rate = state.rate; u.pitch = state.pitch; u.volume = state.volume;
+  window.speechSynthesis.speak(u);
+}
+
+let timers = [];
+function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+function getSegmentsSorted() {
+  return segments.filter(s => s.vi.trim()).slice().sort((a, b) => a.start - b.start);
+}
+function scheduleNarration(from) {
+  clearTimers();
+  if (state.audioMode !== 'tts' || !HAS_TTS) return;
+  getSegmentsSorted().forEach(seg => {
+    const delay = (seg.start - from) * 1000;
+    if (delay < -150) return;
+    timers.push(setTimeout(() => speak(seg.vi.trim()), Math.max(0, delay)));
+  });
+}
+
+video.addEventListener('play', () => scheduleNarration(video.currentTime));
+video.addEventListener('pause', () => { clearTimers(); if (HAS_TTS) window.speechSynthesis.cancel(); });
+video.addEventListener('seeked', () => { if (!video.paused && !state.isExporting) scheduleNarration(video.currentTime); });
+video.addEventListener('timeupdate', () => {
+  if (!state.isExporting) $('#timeBadge').textContent = `${fmtTime(video.currentTime)} / ${fmtTime(video.duration)}`;
+});
+
+$('#btnPlay').addEventListener('click', () => {
+  if (!state.videoURL) return toast('Chưa chọn video');
+  if (HAS_TTS) window.speechSynthesis.cancel();
+  video.play().catch(() => toast('Không thể phát video'));
+});
+$('#btnPause').addEventListener('click', () => video.pause());
+$('#btnRewind').addEventListener('click', () => {
+  video.pause(); if (HAS_TTS) window.speechSynthesis.cancel();
+  clearTimers(); video.currentTime = 0;
+});
+
+$$('.pill').forEach(pill => {
+  pill.addEventListener('click', () => {
+    $$('.pill').forEach(p => p.classList.remove('on'));
+    pill.classList.add('on');
+    pill.querySelector('input').checked = true;
+    state.audioMode = pill.querySelector('input').value;
+    $('#fileAudioBox').style.display = state.audioMode === 'file' ? 'block' : 'none';
+    $('#ttsWarn').style.display = state.audioMode === 'tts' ? 'block' : 'none';
+  });
+});
+
+$('#pickAudio').addEventListener('click', () => $('#narrationFile').click());
+$('#narrationFile').addEventListener('change', async e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  try {
+    setStatus('Đang giải mã file audio…');
+    const ctx = getAudioCtx();
+    const buf = await f.arrayBuffer();
+    state.narrationBuffer = await ctx.decodeAudioData(buf);
+    state.narrationName = f.name;
+    $('#audioInfo').textContent = `✔ ${f.name} — ${state.narrationBuffer.duration.toFixed(1)}s`;
+    setStatus('Đã nạp file thuyết minh ✔', 'ok');
+  } catch (err) {
+    state.narrationBuffer = null;
+    $('#audioInfo').textContent = 'Chưa chọn file.';
+    setStatus('Không đọc được file audio này.', 'err');
+  }
+});
+
+$('#keepOriginal').addEventListener('change', e => { state.keepOriginal = e.target.checked; });
+
+/* =========================================================
+   XUẤT VIDEO
+   ========================================================= */
+function pickMime() {
+  const list = [
+    'video/mp4;codecs="avc1.640028,mp4a.40.2"',
+    'video/mp4;codecs="avc1.42E01E,mp4a.40.2"',
+    'video/mp4',
+    'video/webm;codecs=vp9,opus',
+    'video/webm;codecs=vp8,opus',
+    'video/webm'
+  ];
+  if (!window.MediaRecorder) return '';
+  for (const t of list) { try { if (MediaRecorder.isTypeSupported(t)) return t; } catch (e) {} }
+  return '';
+}
+
+async function prepareAudio() {
+  if (state.audioMode === 'file' && state.narrationBuffer) {
+    const ctx = getAudioCtx();
+    const dest = ctx.createMediaStreamDestination();
+    const nSrc = ctx.createBufferSource();
+    nSrc.buffer = state.narrationBuffer;
+    nSrc.connect(dest);
+    const gain = ctx.createGain();
+    gain.gain.value = state.keepOriginal ? 1 : 0;
+    getVideoSource().connect(gain);
+    gain.connect(dest);
+    return {
+      tracks: dest.stream.getAudioTracks(),
+      start() { try { nSrc.start(); } catch (e) {} },
+      stop() {
+        try { nSrc.stop(); } catch (e) {}
+        try { gain.disconnect(); } catch (e) {}
+        try { nSrc.disconnect(); } catch (e) {}
+      }
+    };
+  }
+  try {
+    setStatus('Hãy chọn "Tab này" và BẬT "Chia sẻ âm thanh tab"…');
+    const disp = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true, preferCurrentTab: true });
+    disp.getVideoTracks().forEach(t => t.stop());
+    const at = disp.getAudioTracks();
+    if (!at.length) { disp.getTracks().forEach(t => t.stop()); throw new Error('no-audio-track'); }
+    return { tracks: at, start() {}, stop() { disp.getTracks().forEach(t => t.stop()); } };
+  } catch (err) {
+    if (err && err.name === 'NotAllowedError') throw new Error('Bạn đã huỷ chia sẻ âm thanh.');
+    setStatus('Không thu được âm thanh tab → chuyển sang micro…');
+    toast('Đang thu qua micro. Hãy bật loa và giữ yên tĩnh!');
+    const mic = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+    });
+    return { tracks: mic.getAudioTracks(), start() {}, stop() { mic.getTracks().forEach(t => t.stop()); } };
+  }
+}
+
+function seekTo(t) {
+  return new Promise(res => {
+    let done = false;
+    const finish = () => { if (done) return; done = true; video.removeEventListener('seeked', finish); res(); };
+    video.addEventListener('seeked', finish);
+    video.currentTime = t;
+    setTimeout(finish, 1200);
+  });
+}
+
+let endedHandler = null;
+$('#btnExport').addEventListener('click', startExport);
+$('#btnStop').addEventListener('click', stopExport);
+
+async function startExport() {
+  if (!state.videoURL) return toast('Vui lòng chọn video trước');
+  if (!isFinite(video.duration) || video.duration <= 0) return toast('Video chưa sẵn sàng');
+  if (!window.MediaRecorder) return toast('Trình duyệt không hỗ trợ MediaRecorder');
+  if (state.audioMode === 'tts' && !HAS_TTS) return toast('Trình duyệt không hỗ trợ TTS — chuyển sang "File audio"', 4000);
+
+  const untranslated = segments.filter(s => s.source.trim() && !s.vi.trim()).length;
+  if (untranslated && state.audioMode === 'tts') {
+    if (!confirm(`Còn ${untranslated} đoạn chưa có bản dịch.\nVẫn tiếp tục xuất?`)) return;
+  }
+
+  const btnExport = $('#btnExport');
+  const btnStop = $('#btnStop');
+  btnExport.disabled = true; btnStop.hidden = false;
+  state.isExporting = true;
+  $('#progressBar').style.width = '0%';
+  setStatus('Đang chuẩn bị…');
+
+  let audioSetup = null;
+  let stream = null;
+
+  try {
+    video.pause(); if (HAS_TTS) window.speechSynthesis.cancel(); clearTimers();
+    await seekTo(0);
+
+    const vw = video.videoWidth || 1280;
+    const vh = video.videoHeight || 720;
+    const scale = Math.min(1, 1920 / vw, 1080 / vh);
+    canvas.width  = Math.max(2, Math.round(vw * scale / 2) * 2);
+    canvas.height = Math.max(2, Math.round(vh * scale / 2) * 2);
+    const ctx2d = canvas.getContext('2d', { alpha: false });
+    ctx2d.fillStyle = '#000'; ctx2d.fillRect(0, 0, canvas.width, canvas.height);
+
+    audioSetup = await prepareAudio();
+    stream = new MediaStream();
+    canvas.captureStream(30).getVideoTracks().forEach(t => stream.addTrack(t));
+    audioSetup.tracks.forEach(t => stream.addTrack(t));
+
+    const mime = pickMime();
+    const recOpts = { videoBitsPerSecond: 8_000_000, audioBitsPerSecond: 128_000 };
+    if (mime) recOpts.mimeType = mime;
+
+    const rec = new MediaRecorder(stream, recOpts);
+    state.recorder = rec;
+    const chunks = [];
+    rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+
+    rec.onstop = () => {
+      const type = (mime || 'video/webm').split(';')[0];
+      const ext = type.includes('mp4') ? 'mp4' : 'webm';
+      const blob = new Blob(chunks, { type });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${state.fileName}_thuyetminh.${ext}`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 15000);
+
+      try { audioSetup.stop(); } catch (e) {}
+      stream.getTracks().forEach(t => { try { t.stop(); } catch (e) {} });
+      if (endedHandler) { video.removeEventListener('ended', endedHandler); endedHandler = null; }
+      if (HAS_TTS) window.speechSynthesis.cancel(); clearTimers(); video.pause();
+
+      state.isExporting = false; state.recorder = null;
+      btnExport.disabled = false; btnStop.hidden = true;
+      $('#progressBar').style.width = '100%';
+      setStatus(`✅ Hoàn tất! Đã tải ${ext.toUpperCase()} · ${(blob.size / 1048576).toFixed(1)} MB`, 'ok');
+      toast(`Đã tải video .${ext} về máy 🎉`, 4000);
+    };
+
+    rec.start(1000);
+    setStatus('🔴 Đang ghi… video sẽ tự chạy hết.');
+
+    try { await video.play(); }
+    catch (e) { video.muted = true; await video.play(); }
+
+    audioSetup.start();
+    scheduleNarration(0);
+
+    (function drawLoop() {
+      if (!state.isExporting) return;
+      try { ctx2d.drawImage(video, 0, 0, canvas.width, canvas.height); } catch (e) {}
+      const p = video.duration ? video.currentTime / video.duration : 0;
+      $('#progressBar').style.width = Math.min(100, p * 100).toFixed(1) + '%';
+      $('#timeBadge').textContent = `${fmtTime(video.currentTime)} / ${fmtTime(video.duration)}`;
+      requestAnimationFrame(drawLoop);
+    })();
+
+    endedHandler = () => {
+      setTimeout(() => {
+        if (state.recorder && state.recorder.state !== 'inactive') state.recorder.stop();
+      }, 500);
+    };
+    video.addEventListener('ended', endedHandler);
+
+  } catch (err) {
+    console.error(err);
+    state.isExporting = false;
+    btnExport.disabled = false; btnStop.hidden = true;
+    if (audioSetup) { try { audioSetup.stop(); } catch (e) {} }
+    if (stream) stream.getTracks().forEach(t => { try { t.stop(); } catch (e) {} });
+    if (endedHandler) { video.removeEventListener('ended', endedHandler); endedHandler = null; }
+    if (HAS_TTS) window.speechSynthesis.cancel(); clearTimers();
+    setStatus('❌ Lỗi: ' + (err.message || err), 'err');
+    toast('Xuất video thất bại: ' + (err.message || err), 4000);
+  }
+}
+
+function stopExport() {
+  if (!state.isExporting) return;
+  state.isExporting = false;
+  if (endedHandler) { video.removeEventListener('ended', endedHandler); endedHandler = null; }
+  if (state.recorder && state.recorder.state !== 'inactive') state.recorder.stop();
+  if (HAS_TTS) window.speechSynthesis.cancel();
+  clearTimers(); video.pause();
+  toast('Đã dừng ghi — file sẽ được tải về.');
+}
+
+/* =========================================================
+   KHỞI TẠO
+   ========================================================= */
+addSegment(0,
+  'Welcome to this tutorial. Today we will learn how to add a voiceover to your video.',
+  'Chào mừng bạn đến với hướng dẫn này. Hôm nay chúng ta sẽ học cách thêm thuyết minh vào video của bạn.'
+);
+addSegment(5,
+  '这是一个非常简单的工具，可以帮助你快速制作带解说的视频。',
+  'Đây là một công cụ rất đơn giản, giúp bạn nhanh chóng tạo video có thuyết minh.'
+);
+$('#ttsWarn').style.display = 'block';
+renderSegments();
+
+window.addEventListener('beforeunload', () => {
+  if (HAS_TTS) window.speechSynthesis.cancel();
+  if (state.videoURL) URL.revokeObjectURL(state.videoURL);
+});
+</script>
+</body>
+  </html>
